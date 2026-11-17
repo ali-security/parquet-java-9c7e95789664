@@ -17,12 +17,14 @@
 
 name: Vector-plugins
 
-on: [push, pull_request]
+on:
+  workflow_dispatch: {}
 
 jobs:
   build:
 
     runs-on: ubuntu-latest
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:

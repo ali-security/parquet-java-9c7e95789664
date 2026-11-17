@@ -17,12 +17,19 @@
 
 name: CI Hadoop 3
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
+    inputs:
+      test-filter:
+        description: 'Maven test selector (e.g. -pl parquet-thrift -Dtest=Foo); empty runs the full suite'
+        required: false
+        default: ''
 
 jobs:
   build:
 
     runs-on: ubuntu-latest
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -54,4 +61,40 @@ jobs:
         run: |
           EXTRA_JAVA_TEST_ARGS=$(./mvnw help:evaluate -Dexpression=extraJavaTestArgs -q -DforceStdout)
           export MAVEN_OPTS="$MAVEN_OPTS $EXTRA_JAVA_TEST_ARGS"
-          ./mvnw verify --batch-mode javadoc:javadoc
+          if [ -n "${{ inputs.test-filter }}" ]; then
+            ./mvnw verify --batch-mode -Drat.skip=true -Dspotless.check.skip=true -Djapicmp.skip=true -Dsurefire.failIfNoSpecifiedTests=false ${{ inputs.test-filter }}
+          else
+            ./mvnw verify --batch-mode -Drat.skip=true -Dspotless.check.skip=true -Djapicmp.skip=true javadoc:javadoc
+          fi
+      - name: test summary (counts and skipped tests with reasons)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          tot = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+          skips = []
+          for f in sorted(glob.glob("**/target/surefire-reports/TEST-*.xml", recursive=True)):
+              r = ET.parse(f).getroot()
+              for k in tot:
+                  tot[k] += int(r.get(k, 0) or 0)
+              for tc in r.iter("testcase"):
+                  s = tc.find("skipped")
+                  if s is not None:
+                      msg = (s.get("message") or (s.text or "")).strip().splitlines()
+                      skips.append("%s#%s: %s" % (tc.get("classname"), tc.get("name"), msg[0] if msg else "(no message)"))
+          print("===== TEST SUMMARY =====")
+          print("Tests run: %(tests)d, Failures: %(failures)d, Errors: %(errors)d, Skipped: %(skipped)d" % tot)
+          print("Passed: %d" % (tot["tests"] - tot["failures"] - tot["errors"] - tot["skipped"]))
+          print("===== SKIPPED TESTS (%d) =====" % len(skips))
+          for s in skips:
+              print("SKIPPED " + s)
+          PY
+      - name: upload parquet-format-structures jars
+        if: matrix.java.setup == '11' && matrix.codes == 'uncompressed,brotli'
+        uses: actions/upload-artifact@v4
+        with:
+          name: parquet-format-structures-jars
+          path: |
+            parquet-format-structures/target/parquet-format-structures-1.17.1.jar
+            parquet-format-structures/target/parquet-format-structures-1.17.1-tests.jar
+          if-no-files-found: error
