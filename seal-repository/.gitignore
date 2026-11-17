@@ -1,0 +1,2 @@
+# Sealed dependency jars must be committed; the root .gitignore ignores *.jar.
+!*.jar

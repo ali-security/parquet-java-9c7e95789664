@@ -1,0 +1,2 @@
+# Sealed dependency jars are binary; keep the root "* text eol=lf" rule off them.
+*.jar binary

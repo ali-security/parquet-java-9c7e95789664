@@ -174,6 +174,13 @@
 
   <dependencyManagement>
     <dependencies>
+      <!-- seal:shaded-deps DO NOT REMOVE — sealed embedded dependencies -->
+      <dependency>
+        <groupId>org.apache.thrift</groupId>
+        <artifactId>libthrift</artifactId>
+        <version>0.22.0+sp1</version>
+      </dependency>
+      <!-- /seal:shaded-deps -->
       <dependency>
         <groupId>org.apache.hadoop</groupId>
         <artifactId>hadoop-mapreduce-client-core</artifactId>
@@ -221,6 +228,23 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
+  <repositories>
+    <!-- seal: in-tree repository serving the sealed libthrift 0.22.0+sp1 pinned above
+         (CVE-2026-43869: TSSLTransportFactory client sockets verify the server host name).
+         libthrift-0.22.0+sp1.jar sha256 8c8a86d9a775cede1312026e569c64c44c17d51aab4a9a340ca81d5c55d07b2e -->
+    <repository>
+      <id>seal-sealed-dependencies</id>
+      <url>file://${maven.multiModuleProjectDirectory}/seal-repository</url>
+      <releases>
+        <enabled>true</enabled>
+        <checksumPolicy>fail</checksumPolicy>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
 
   <reporting>
     <plugins>
@@ -513,6 +537,7 @@
             <exclude>thrift-${thrift.version}.tar.gz</exclude>
             <exclude>**/dependency-reduced-pom.xml</exclude>
             <exclude>**/*.rej</exclude>
+            <exclude>seal-repository/**</exclude>
           </excludes>
         </configuration>
       </plugin>
